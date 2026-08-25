@@ -1,14 +1,21 @@
 import { useState, useMemo } from 'react';
-import { getResults } from '../../utils/storage';
+import { getResults, saveResults } from '../../utils/storage';
+import { getGrade, getStatus } from '../../utils/grading';
+import { useToast } from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
+import Modal from '../../components/Modal';
 
 export default function ManageResults() {
+  const toast = useToast();
+  const [results, setResults] = useState(getResults());
   const [search, setSearch] = useState('');
   const [quizFilter, setQuizFilter] = useState('All');
   const [gradeFilter, setGradeFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [sortBy, setSortBy] = useState('date-desc');
-  const results = getResults();
+  const [editTarget, setEditTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [editForm, setEditForm] = useState({ obtainedMarks: 0, totalMarks: 0, passingPercentage: 50 });
 
   const quizOptions = useMemo(() => {
     const set = new Set(results.map((r) => r.quizTitle));
@@ -35,11 +42,39 @@ export default function ManageResults() {
     return list;
   }, [results, search, quizFilter, gradeFilter, statusFilter, sortBy]);
 
+  const openEdit = (result) => {
+    setEditTarget(result);
+    setEditForm({ obtainedMarks: result.obtainedMarks, totalMarks: result.totalMarks, passingPercentage: result.passingPercentage || 50 });
+  };
+
+  const handleSaveEdit = (e) => {
+    e.preventDefault();
+    const obtained = parseInt(editForm.obtainedMarks);
+    const total = parseInt(editForm.totalMarks);
+    if (isNaN(obtained) || isNaN(total) || total <= 0) { toast.error('Please enter valid marks'); return; }
+    if (obtained < 0 || obtained > total) { toast.error('Obtained marks must be between 0 and total marks'); return; }
+    const percentage = Math.round((obtained / total) * 100);
+    const grade = getGrade(percentage);
+    const status = getStatus(percentage, parseInt(editForm.passingPercentage));
+    const updated = results.map((r) => r.id === editTarget.id ? { ...r, obtainedMarks: obtained, totalMarks: total, percentage, grade, status, passingPercentage: parseInt(editForm.passingPercentage) } : r);
+    setResults(updated); saveResults(updated);
+    toast.success('Result updated successfully');
+    setEditTarget(null);
+  };
+
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    const updated = results.filter((r) => r.id !== deleteTarget.id);
+    setResults(updated); saveResults(updated);
+    toast.success('Result deleted successfully');
+    setDeleteTarget(null);
+  };
+
   return (
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">All Results</h1>
-        <p className="page-subtitle">View and analyze student performance across all quizzes</p>
+        <p className="page-subtitle">View, edit, and analyze student performance across all quizzes</p>
       </div>
       <div className="results-toolbar">
         <div className="quiz-search">
@@ -65,7 +100,7 @@ export default function ManageResults() {
         <div className="table-wrapper">
           <table className="table">
             <thead>
-              <tr><th>Student</th><th>Quiz</th><th>Score</th><th>Percentage</th><th>Grade</th><th>Status</th><th>Date</th></tr>
+              <tr><th>Student</th><th>Quiz</th><th>Score</th><th>Percentage</th><th>Grade</th><th>Status</th><th>Date</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {filtered.map((result) => (
@@ -77,6 +112,12 @@ export default function ManageResults() {
                   <td><span className={`badge ${result.grade === 'A+' || result.grade === 'A' ? 'badge-success' : result.grade === 'F' ? 'badge-danger' : 'badge-primary'}`}>{result.grade}</span></td>
                   <td><span className={`badge ${result.status === 'PASSED' ? 'badge-success' : 'badge-danger'}`}>{result.status}</span></td>
                   <td className="text-muted">{new Date(result.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                  <td>
+                    <div className="table-actions">
+                      <button className="action-btn" title="Edit" onClick={() => openEdit(result)}>{'\u270F\uFE0F'}</button>
+                      <button className="action-btn" title="Delete" onClick={() => setDeleteTarget(result)}>{'\uD83D\uDDD1\uFE0F'}</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -86,6 +127,49 @@ export default function ManageResults() {
         <EmptyState icon="\uD83D\uDCCA" title="No results found" message="No results match your filters. Try adjusting your search."
           action={<button className="btn btn-secondary" onClick={() => { setSearch(''); setQuizFilter('All'); setGradeFilter('All'); setStatusFilter('All'); setSortBy('date-desc'); }}>Clear Filters</button>} />
       )}
+      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="Edit Student Result">
+        {editTarget && (
+          <form onSubmit={handleSaveEdit}>
+            <div className="result-edit-info" style={{ marginBottom: '1rem', padding: '1rem', borderRadius: 'var(--radius-sm)', background: 'var(--surface-soft)' }}>
+              <p style={{ fontWeight: 600 }}>{editTarget.studentName}</p>
+              <p className="text-muted" style={{ fontSize: '0.85rem' }}>{editTarget.quizTitle}</p>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Obtained Marks</label>
+                <input type="number" className="form-input" min="0" value={editForm.obtainedMarks} onChange={(e) => setEditForm({ ...editForm, obtainedMarks: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Total Marks</label>
+                <input type="number" className="form-input" min="1" value={editForm.totalMarks} onChange={(e) => setEditForm({ ...editForm, totalMarks: e.target.value })} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Passing Percentage</label>
+              <input type="number" className="form-input" min="1" max="100" value={editForm.passingPercentage} onChange={(e) => setEditForm({ ...editForm, passingPercentage: e.target.value })} />
+            </div>
+            <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-sm)', background: 'var(--surface-soft)', marginBottom: '1rem', fontSize: '0.85rem' }}>
+              <span>Preview: </span>
+              <span className="font-bold">
+                {editForm.totalMarks > 0 ? Math.round((parseInt(editForm.obtainedMarks || 0) / parseInt(editForm.totalMarks)) * 100) : 0}%
+                {' '}({getGrade(editForm.totalMarks > 0 ? Math.round((parseInt(editForm.obtainedMarks || 0) / parseInt(editForm.totalMarks)) * 100) : 0)})
+                {' '}{getStatus(editForm.totalMarks > 0 ? Math.round((parseInt(editForm.obtainedMarks || 0) / parseInt(editForm.totalMarks)) * 100) : 0, parseInt(editForm.passingPercentage) || 50)}
+              </span>
+            </div>
+            <div className="form-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setEditTarget(null)}>Cancel</button>
+              <button type="submit" className="btn btn-primary">Save Changes</button>
+            </div>
+          </form>
+        )}
+      </Modal>
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Result?">
+        <p className="delete-modal-text">Are you sure you want to delete this result for <strong>{deleteTarget?.studentName}</strong>? This cannot be undone.</p>
+        <div className="delete-modal-actions">
+          <button className="btn btn-secondary" onClick={() => setDeleteTarget(null)}>Cancel</button>
+          <button className="btn btn-danger" onClick={handleDelete}>Delete Result</button>
+        </div>
+      </Modal>
     </div>
   );
 }

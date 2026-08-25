@@ -18,7 +18,7 @@ export default function ManageQuestions() {
   const quiz = useMemo(() => quizzes.find((q) => q.id === quizId), [quizzes, quizId]);
 
   const [questionForm, setQuestionForm] = useState({ text: '', options: ['', '', '', ''], correctAnswer: '', marks: 2, explanation: '' });
-  const [quizForm, setQuizForm] = useState(quiz ? { title: quiz.title, description: quiz.description, subject: quiz.subject, difficulty: quiz.difficulty, duration: quiz.duration, passingPercentage: quiz.passingPercentage, published: quiz.published } : {});
+  const [quizForm, setQuizForm] = useState(quiz ? { title: quiz.title, description: quiz.description, subject: quiz.subject, difficulty: quiz.difficulty, duration: quiz.duration, passingPercentage: quiz.passingPercentage, published: quiz.published, scheduledEnabled: quiz.scheduledEnabled || false, scheduledAt: quiz.scheduledAt ? new Date(quiz.scheduledAt).toISOString().slice(0, 16) : '' } : {});
 
   if (!quiz) {
     return <div className="page"><div className="error-state"><h2>Quiz Not Found</h2><p className="text-muted">This quiz doesn't exist.</p><button className="btn btn-primary mt-4" onClick={() => navigate('/admin/quizzes')}>Back to Quizzes</button></div></div>;
@@ -86,7 +86,7 @@ export default function ManageQuestions() {
     e.preventDefault();
     const updated = quizzes.map((q) => {
       if (q.id !== quizId) return q;
-      return { ...q, title: quizForm.title.trim(), description: quizForm.description.trim(), subject: quizForm.subject.trim(), difficulty: quizForm.difficulty, duration: parseInt(quizForm.duration), passingPercentage: parseInt(quizForm.passingPercentage), published: quizForm.published };
+      return { ...q, title: quizForm.title.trim(), description: quizForm.description.trim(), subject: quizForm.subject.trim(), difficulty: quizForm.difficulty, duration: parseInt(quizForm.duration), passingPercentage: parseInt(quizForm.passingPercentage), published: quizForm.published, scheduledEnabled: quizForm.scheduledEnabled, scheduledAt: quizForm.scheduledEnabled ? new Date(quizForm.scheduledAt).toISOString() : null };
     });
     updateQuizState(updated);
     toast.success('Quiz updated successfully');
@@ -121,6 +121,9 @@ export default function ManageQuestions() {
         <div className="quiz-info-item"><span className="quiz-info-icon">{'\uD83C\uDFC6'}</span><span>{quiz.totalMarks} Marks</span></div>
         <div className="quiz-info-item"><span className="quiz-info-icon">{'\u23F1\uFE0F'}</span><span>{quiz.duration} Minutes</span></div>
         <div className="quiz-info-item"><span className="quiz-info-icon">{'\u2705'}</span><span>Pass: {quiz.passingPercentage}%</span></div>
+        {quiz.scheduledEnabled && quiz.scheduledAt && (
+          <div className="quiz-info-item"><span className="quiz-info-icon">{'\uD83D\uDCC5'}</span><span>Opens: {new Date(quiz.scheduledAt).toLocaleString('en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
+        )}
       </div>
       <div className="questions-section">
         <div className="section-header">
@@ -233,6 +236,21 @@ export default function ManageQuestions() {
               <label className="toggle"><input type="checkbox" checked={quizForm.published || false} onChange={(e) => setQuizForm({ ...quizForm, published: e.target.checked })} /><span className="toggle-slider" /></label>
             </label>
           </div>
+          <div className="form-group">
+            <label className="toggle-label-row">
+              <div>
+                <span className="settings-toggle-label">Schedule Open Time</span>
+                <p className="settings-toggle-desc">When this quiz becomes available to students</p>
+              </div>
+              <label className="toggle"><input type="checkbox" checked={quizForm.scheduledEnabled || false} onChange={(e) => setQuizForm({ ...quizForm, scheduledEnabled: e.target.checked })} /><span className="toggle-slider" /></label>
+            </label>
+          </div>
+          {quizForm.scheduledEnabled && (
+            <div className="form-group">
+              <label className="form-label">Quiz Opens At</label>
+              <input type="datetime-local" className="form-input" value={quizForm.scheduledAt || ''} onChange={(e) => setQuizForm({ ...quizForm, scheduledAt: e.target.value })} />
+            </div>
+          )}
           <div className="form-actions">
             <button type="button" className="btn btn-secondary" onClick={() => setShowEditQuiz(false)}>Cancel</button>
             <button type="submit" className="btn btn-primary">Save Changes</button>

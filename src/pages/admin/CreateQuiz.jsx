@@ -6,7 +6,11 @@ import { useToast } from '../../components/Toast';
 export default function CreateQuiz() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [form, setForm] = useState({ title: '', description: '', subject: '', difficulty: 'Easy', duration: 30, passingPercentage: 50 });
+  const [form, setForm] = useState({
+    title: '', description: '', subject: '', difficulty: 'Easy',
+    duration: 30, passingPercentage: 50,
+    scheduledEnabled: false, scheduledAt: '',
+  });
   const [errors, setErrors] = useState({});
 
   const validate = () => {
@@ -16,6 +20,7 @@ export default function CreateQuiz() {
     if (!form.subject.trim()) errs.subject = 'Subject is required';
     if (!form.duration || form.duration < 1) errs.duration = 'Duration must be at least 1 minute';
     if (!form.passingPercentage || form.passingPercentage < 1 || form.passingPercentage > 100) errs.passingPercentage = 'Passing percentage must be 1-100';
+    if (form.scheduledEnabled && !form.scheduledAt) errs.scheduledAt = 'Please pick a date and time';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -24,7 +29,20 @@ export default function CreateQuiz() {
     e.preventDefault();
     if (!validate()) return;
     const quizzes = getQuizzes();
-    const newQuiz = { id: `quiz_${Date.now()}`, title: form.title.trim(), description: form.description.trim(), subject: form.subject.trim(), difficulty: form.difficulty, duration: parseInt(form.duration), totalMarks: 0, passingPercentage: parseInt(form.passingPercentage), published: false, questions: [] };
+    const newQuiz = {
+      id: `quiz_${Date.now()}`,
+      title: form.title.trim(),
+      description: form.description.trim(),
+      subject: form.subject.trim(),
+      difficulty: form.difficulty,
+      duration: parseInt(form.duration),
+      totalMarks: 0,
+      passingPercentage: parseInt(form.passingPercentage),
+      published: false,
+      questions: [],
+      scheduledEnabled: form.scheduledEnabled,
+      scheduledAt: form.scheduledEnabled ? new Date(form.scheduledAt).toISOString() : null,
+    };
     quizzes.push(newQuiz);
     saveQuizzes(quizzes);
     toast.success('Quiz created successfully');
@@ -76,6 +94,30 @@ export default function CreateQuiz() {
               {errors.passingPercentage && <span className="form-error">{errors.passingPercentage}</span>}
             </div>
           </div>
+          <div className="form-group">
+            <label className="toggle-label-row">
+              <div>
+                <span className="settings-toggle-label">Schedule Quiz Open Time</span>
+                <p className="settings-toggle-desc">Set when this quiz becomes available to students</p>
+              </div>
+              <label className="toggle">
+                <input type="checkbox" checked={form.scheduledEnabled} onChange={(e) => update('scheduledEnabled', e.target.checked)} />
+                <span className="toggle-slider" />
+              </label>
+            </label>
+          </div>
+          {form.scheduledEnabled && (
+            <div className="form-group">
+              <label className="form-label">Quiz Opens At</label>
+              <input
+                type="datetime-local"
+                className="form-input"
+                value={form.scheduledAt}
+                onChange={(e) => update('scheduledAt', e.target.value)}
+              />
+              {errors.scheduledAt && <span className="form-error">{errors.scheduledAt}</span>}
+            </div>
+          )}
           <div className="form-actions">
             <button type="button" className="btn btn-secondary" onClick={() => navigate('/admin/quizzes')}>Cancel</button>
             <button type="submit" className="btn btn-primary">Create Quiz</button>

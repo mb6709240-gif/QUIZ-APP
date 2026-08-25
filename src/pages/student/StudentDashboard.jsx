@@ -8,6 +8,7 @@ export default function StudentDashboard() {
   const quizzes = getQuizzes().filter((q) => q.published);
   const allResults = getResults().filter((r) => r.studentId === user?.id);
   const progress = getQuizProgress();
+  const now = new Date();
 
   const stats = useMemo(() => {
     const completed = allResults.length;
@@ -23,6 +24,10 @@ export default function StudentDashboard() {
     }).slice(0, 3);
   }, [quizzes, progress]);
 
+  const upcomingQuizzes = useMemo(() => {
+    return quizzes.filter((q) => q.scheduledEnabled && q.scheduledAt && new Date(q.scheduledAt) > now).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+  }, [quizzes, now]);
+
   const recentResults = useMemo(() => {
     return [...allResults].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 4);
   }, [allResults]);
@@ -33,11 +38,22 @@ export default function StudentDashboard() {
     return (unattempted.length > 0 ? unattempted : quizzes).slice(0, 4);
   }, [quizzes, allResults]);
 
-  const hour = new Date().getHours();
+  const hour = now.getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const today = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const weekData = [72, 81, 90, 76, 88, 92, 85];
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  const formatScheduledDate = (dateStr) => {
+    const d = new Date(dateStr);
+    const diff = d - now;
+    const days = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    if (days > 0) return `In ${days} day${days > 1 ? 's' : ''} ${hours > 0 ? `& ${hours}h` : ''}`;
+    if (hours > 0) return `In ${hours} hour${hours > 1 ? 's' : ''}`;
+    const mins = Math.floor((diff % 3600000) / 60000);
+    return `In ${mins} minute${mins > 1 ? 's' : ''}`;
+  };
 
   const statCards = [
     { icon: '\uD83D\uDCDA', label: 'Available Quizzes', value: stats.available, gradient: 'gradient-primary', sub: 'Ready to attempt' },
@@ -65,6 +81,36 @@ export default function StudentDashboard() {
           </div>
         ))}
       </div>
+
+      {upcomingQuizzes.length > 0 && (
+        <section className="dashboard-section">
+          <div className="section-header">
+            <h2 className="section-title">{'\uD83D\uDCC5'} Upcoming Quizzes</h2>
+          </div>
+          <div className="upcoming-quiz-grid">
+            {upcomingQuizzes.map((quiz) => (
+              <div key={quiz.id} className="upcoming-quiz-card card card-hover">
+                <div className="upcoming-quiz-top">
+                  <span className="badge badge-primary">{quiz.subject}</span>
+                  <span className={`badge ${quiz.difficulty === 'Easy' ? 'badge-success' : quiz.difficulty === 'Medium' ? 'badge-warning' : 'badge-danger'}`}>{quiz.difficulty}</span>
+                </div>
+                <h3 className="upcoming-quiz-title">{quiz.title}</h3>
+                <p className="upcoming-quiz-desc">{quiz.description}</p>
+                <div className="upcoming-quiz-meta">
+                  <span>{'\u2753'} {quiz.questions?.length || 0} Questions</span>
+                  <span>{'\uD83C\uDFC6'} {quiz.totalMarks} Marks</span>
+                  <span>{'\u23F1\uFE0F'} {quiz.duration} Min</span>
+                </div>
+                <div className="upcoming-quiz-date">
+                  <span className="upcoming-quiz-opens">Opens {new Date(quiz.scheduledAt).toLocaleString('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="upcoming-quiz-countdown">{formatScheduledDate(quiz.scheduledAt)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {unfinishedQuizzes.length > 0 && (
         <section className="dashboard-section">
           <h2 className="section-title">Continue Learning</h2>
@@ -85,6 +131,7 @@ export default function StudentDashboard() {
           </div>
         </section>
       )}
+
       <section className="dashboard-section">
         <div className="section-header">
           <h2 className="section-title">Recommended Quizzes</h2>
@@ -109,16 +156,17 @@ export default function StudentDashboard() {
           ))}
         </div>
       </section>
+
       <div className="dashboard-bottom-grid">
         <section className="dashboard-section">
           <div className="section-header">
-            <h2 className="section-title">Recent Results</h2>
+            <h2 className="section-title">Previous Results</h2>
             <Link to="/student/results" className="section-link">View All {'\u2192'}</Link>
           </div>
           {recentResults.length > 0 ? (
             <div className="recent-results-list">
               {recentResults.map((result) => (
-                <div key={result.id} className="recent-result-item card">
+                <div key={result.id} className="recent-result-item card card-hover" onClick={() => navigate(`/student/result/${result.id}`)} style={{ cursor: 'pointer' }}>
                   <div className="recent-result-info">
                     <h4 className="recent-result-title">{result.quizTitle}</h4>
                     <p className="recent-result-date">{new Date(result.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
