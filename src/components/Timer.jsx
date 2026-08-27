@@ -1,17 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 
-export default function Timer({ duration, onExpire, stopped = false }) {
-  const [secondsLeft, setSecondsLeft] = useState(duration * 60);
+export default function Timer({ duration, initialSeconds = null, onExpire, stopped = false }) {
+  const startSeconds = initialSeconds !== null ? initialSeconds : (duration || 0) * 60;
+  const [secondsLeft, setSecondsLeft] = useState(startSeconds);
   const onExpireRef = useRef(onExpire);
   onExpireRef.current = onExpire;
 
-  useEffect(() => { setSecondsLeft(duration * 60); }, [duration]);
+  useEffect(() => {
+    if (initialSeconds !== null) setSecondsLeft(initialSeconds);
+    else setSecondsLeft((duration || 0) * 60);
+  }, [duration, initialSeconds]);
 
   useEffect(() => {
     if (stopped) return;
     const interval = setInterval(() => {
       setSecondsLeft((prev) => {
-        if (prev <= 1) { clearInterval(interval); onExpireRef.current(); return 0; }
+        if (prev <= 1) {
+          clearInterval(interval);
+          try { onExpireRef.current && onExpireRef.current(); } catch (e) { /* ignore */ }
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
