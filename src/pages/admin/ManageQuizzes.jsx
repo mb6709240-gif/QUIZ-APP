@@ -4,6 +4,7 @@ import { getQuizzes, saveQuizzes, getResults } from '../../utils/storage';
 import { useToast } from '../../components/Toast';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
+import { getQuizStatus } from '../../utils/scheduling';
 
 export default function ManageQuizzes() {
   const navigate = useNavigate();
@@ -88,7 +89,7 @@ export default function ManageQuizzes() {
                   <td><span className="badge badge-primary">{quiz.subject}</span></td>
                   <td>{quiz.questions?.length || 0}</td>
                   <td>{quiz.duration} min</td>
-                  <td><span className={`badge ${quiz.published ? 'badge-success' : 'badge-neutral'}`}>{quiz.published ? 'Published' : 'Draft'}</span></td>
+                   <td><span className={`badge ${getQuizStatus(quiz) === 'LIVE' ? 'badge-success' : getQuizStatus(quiz) === 'UPCOMING' ? 'badge-warning' : getQuizStatus(quiz) === 'COMPLETED' ? 'badge-info' : 'badge-neutral'}`}>{getQuizStatus(quiz)}</span></td>
                   <td>{getAttempts(quiz.id)}</td>
                   <td>
                     <div className="table-actions">
