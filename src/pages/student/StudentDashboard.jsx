@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCurrentUser, getQuizzes, getResults, getQuizProgress } from '../../utils/storage';
+import { getQuizStatus, getOpenDate } from '../../utils/scheduling';
 
 export default function StudentDashboard() {
   const user = getCurrentUser();
@@ -8,7 +9,11 @@ export default function StudentDashboard() {
   const quizzes = getQuizzes().filter((q) => q.published);
   const allResults = getResults().filter((r) => r.studentId === user?.id);
   const progress = getQuizProgress();
-  const now = new Date();
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const stats = useMemo(() => {
     const completed = allResults.length;
@@ -25,7 +30,7 @@ export default function StudentDashboard() {
   }, [quizzes, progress]);
 
   const upcomingQuizzes = useMemo(() => {
-    return quizzes.filter((q) => q.scheduledEnabled && q.scheduledAt && new Date(q.scheduledAt) > now).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+    return quizzes.filter((q) => getQuizStatus(q, now) === 'UPCOMING').sort((a, b) => getOpenDate(a) - getOpenDate(b));
   }, [quizzes, now]);
 
   const recentResults = useMemo(() => {
@@ -41,11 +46,27 @@ export default function StudentDashboard() {
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
   const today = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const weekData = [72, 81, 90, 76, 88, 92, 85];
-  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const weekData = useMemo(() => Array.from({ length: 7 }, (_, offset) => {
+    const day = new Date(now);
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() - (6 - offset));
+    const nextDay = new Date(day);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const dayResults = allResults.filter((result) => {
+      const submitted = new Date(result.date || result.submittedAt);
+      return submitted >= day && submitted < nextDay;
+    });
+    return dayResults.length ? Math.round(dayResults.reduce((sum, result) => sum + result.percentage, 0) / dayResults.length) : 0;
+  }), [allResults, now]);
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, offset) => {
+    const day = new Date(now);
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() - (6 - offset));
+    return day.toLocaleDateString('en-US', { weekday: 'short' });
+  }), [now]);
 
   const formatScheduledDate = (dateStr) => {
-    const d = new Date(dateStr);
+    const d = dateStr instanceof Date ? dateStr : new Date(dateStr);
     const diff = d - now;
     const days = Math.floor(diff / 86400000);
     const hours = Math.floor((diff % 86400000) / 3600000);
@@ -102,8 +123,8 @@ export default function StudentDashboard() {
                   <span>{'\u23F1\uFE0F'} {quiz.duration} Min</span>
                 </div>
                 <div className="upcoming-quiz-date">
-                  <span className="upcoming-quiz-opens">Opens {new Date(quiz.scheduledAt).toLocaleString('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                  <span className="upcoming-quiz-countdown">{formatScheduledDate(quiz.scheduledAt)}</span>
+                  <span className="upcoming-quiz-opens">Opens {getOpenDate(quiz)?.toLocaleString('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="upcoming-quiz-countdown">{formatScheduledDate(getOpenDate(quiz))}</span>
                 </div>
               </div>
             ))}
