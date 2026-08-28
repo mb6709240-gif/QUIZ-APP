@@ -18,6 +18,8 @@ import QuizResult from './pages/student/QuizResult';
 import ResultHistory from './pages/student/ResultHistory';
 import StudentProfile from './pages/student/StudentProfile';
 import StudentSettings from './pages/student/StudentSettings';
+import AllQuestions from './pages/admin/AllQuestions';
+import ResultDetails from './pages/admin/ResultDetails';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ManageQuizzes from './pages/admin/ManageQuizzes';
@@ -35,16 +37,19 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <ToastProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/login/student" element={<Login initialRole="student" />} />
+          <Route path="/login/admin" element={<Login initialRole="admin" />} />
           <Route path="/register" element={<Register />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
 
           <Route path="/student" element={<ProtectedRoute role="student"><StudentLayout /></ProtectedRoute>}>
             <Route path="dashboard" element={<StudentDashboard />} />
             <Route path="quizzes" element={<QuizList />} />
+            <Route path="quizzes/upcoming" element={<QuizList filter="UPCOMING" />} />
             <Route path="quiz/:quizId" element={<TakeQuiz />} />
             <Route path="result/:resultId" element={<QuizResult />} />
             <Route path="results" element={<ResultHistory />} />
@@ -59,7 +64,9 @@ export default function App() {
             <Route path="quizzes/:quizId" element={<ManageQuestions />} />
             <Route path="students" element={<ManageStudents />} />
             <Route path="results" element={<ManageResults />} />
+            <Route path="results/:resultId" element={<ResultDetails />} />
             <Route path="analytics" element={<Analytics />} />
+            <Route path="questions" element={<AllQuestions />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
 
