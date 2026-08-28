@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getResults, getQuizzes } from '../../utils/storage';
+import { getResults, getQuizzes, getCurrentUser } from '../../utils/storage';
 import { useToast } from '../../components/Toast';
 
 export default function QuizResult() {
@@ -9,7 +9,8 @@ export default function QuizResult() {
   const toast = useToast();
   const [showDetailed, setShowDetailed] = useState(false);
 
-  const result = useMemo(() => getResults().find((r) => r.id === resultId), [resultId]);
+  const currentUser = getCurrentUser();
+  const result = useMemo(() => getResults().find((r) => r.id === resultId && r.studentId === currentUser?.id), [resultId, currentUser?.id]);
   const quiz = useMemo(() => result ? getQuizzes().find((q) => q.id === result.quizId) : null, [result]);
 
   if (!result) {
