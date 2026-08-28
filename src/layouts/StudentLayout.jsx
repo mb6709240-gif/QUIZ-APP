@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, Outlet } from 'react-router-dom';
 import { getCurrentUser, logoutUser } from '../utils/storage';
 import ThemeToggle from '../components/ThemeToggle';
 import { useState } from 'react';
@@ -13,6 +13,7 @@ export default function StudentLayout({ children }) {
   const navItems = [
     { to: '/student/dashboard', icon: '\uD83D\uDCCA', label: 'Dashboard' },
     { to: '/student/quizzes', icon: '\uD83D\uDCDD', label: 'Quizzes' },
+    { to: '/student/quizzes/upcoming', icon: '\u23F3', label: 'Upcoming Quizzes' },
     { to: '/student/results', icon: '\uD83C\uDFC6', label: 'My Results' },
   ];
   const bottomNavItems = [
@@ -70,7 +71,7 @@ export default function StudentLayout({ children }) {
             <div className="header-avatar"><span>{user?.name?.charAt(0).toUpperCase() || 'S'}</span></div>
           </div>
         </header>
-        <main className="layout-content">{children}</main>
+        <main className="layout-content"><Outlet /></main>
       </div>
       <nav className="bottom-nav">
         {navItems.map((item) => (
