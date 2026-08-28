@@ -6,7 +6,7 @@ import Timer from '../../components/Timer';
 import QuestionCard from '../../components/QuestionCard';
 import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
-import { getQuizStatus } from '../../utils/scheduling';
+import { getQuizStatus, getOpenDate, getCloseDate, formatDuration } from '../../utils/scheduling';
 
 export default function TakeQuiz() {
   const { quizId } = useParams();
@@ -21,68 +21,35 @@ export default function TakeQuiz() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [timerStopped, setTimerStopped] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [initialRemaining, setInitialRemaining] = useState(null);
+  const [started, setStarted] = useState(false);
+  const [remainingTime, setRemainingTime] = useState(() => (quiz?.duration || 0) * 60);
 
   useEffect(() => {
     if (!quiz) { setLoading(false); return; }
-    const status = getQuizStatus(quiz);
-    if (status === 'Upcoming') { setLoading(false); return; }
-    if (status === 'Completed') { setLoading(false); return; }
-
     const progress = getQuizProgress();
     const saved = progress[quizId];
     if (saved) {
       setAnswers(saved.answers || {});
       setMarkedForReview(saved.markedForReview || {});
       if (saved.currentIndex !== undefined) setCurrentIndex(saved.currentIndex);
+      setRemainingTime(saved.remainingTime ?? (quiz.duration * 60));
+      setStarted(true);
     }
-
-    const totalSeconds = (quiz.duration || 0) * 60;
-    const startedAt = saved?.startedAt;
-    if (startedAt) {
-      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-      if (elapsed >= totalSeconds) {
-        // time already elapsed - auto submit
-        handleSubmit();
-        return;
-      }
-      setInitialRemaining(totalSeconds - elapsed);
-    } else {
-      setInitialRemaining(totalSeconds);
-    }
-
     setLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quiz, quizId]);
 
   const saveProgress = useCallback(() => {
     if (!quiz) return;
     const progress = getQuizProgress();
-    progress[quizId] = { answers, markedForReview, currentIndex, answeredCount: Object.keys(answers).length, startedAt: progress[quizId]?.startedAt || null };
+    progress[quizId] = { answers, markedForReview, currentIndex, remainingTime, answeredCount: Object.keys(answers).length, startedAt: progress[quizId]?.startedAt || Date.now() };
     saveQuizProgress(progress);
-  }, [quiz, quizId, answers, markedForReview, currentIndex]);
+  }, [quiz, quizId, answers, markedForReview, currentIndex, remainingTime]);
 
-  useEffect(() => { if (quiz && !loading) saveProgress(); }, [answers, markedForReview, currentIndex, quiz, loading, saveProgress]);
-
-  useEffect(() => {
-    const handleBeforeUnload = () => saveProgress();
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      saveProgress();
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [saveProgress]);
+  useEffect(() => { if (quiz && !loading && started) saveProgress(); }, [answers, markedForReview, currentIndex, remainingTime, started, quiz, loading, saveProgress]);
 
   const handleSelectAnswer = (option) => {
     const q = quiz.questions[currentIndex];
     setAnswers((prev) => ({ ...prev, [q.id]: option }));
-    // ensure startedAt when first interacting
-    const progress = getQuizProgress();
-    if (!progress[quizId]?.startedAt) {
-      progress[quizId] = progress[quizId] || {};
-      progress[quizId].startedAt = Date.now();
-      saveQuizProgress(progress);
-    }
   };
 
   const handleMarkReview = () => {
@@ -95,17 +62,16 @@ export default function TakeQuiz() {
     setTimerStopped(true);
     const result = evaluateQuiz(quiz, answers);
     const progress = getQuizProgress();
-    const startedAt = progress[quizId]?.startedAt || Date.now();
-    const timeTaken = Math.round((Date.now() - startedAt) / 1000);
+    const timeTaken = Math.min(quiz.duration * 60, Math.max(0, quiz.duration * 60 - remainingTime));
     const resultId = `result_${Date.now()}`;
-    const resultRecord = { id: resultId, studentId: user.id, studentName: user.name, quizId: quiz.id, quizTitle: quiz.title, ...result, timeTaken, date: new Date().toISOString(), passingPercentage: quiz.passingPercentage || 50 };
+    const resultRecord = { id: resultId, studentId: user.id, studentName: user.name, studentEmail: user.email, quizId: quiz.id, quizTitle: quiz.title, answers, ...result, timeTaken, submittedAt: new Date().toISOString(), date: new Date().toISOString(), adminNote: '', lastModifiedBy: '', lastModifiedAt: '' };
     const results = JSON.parse(localStorage.getItem('results') || '[]');
     results.push(resultRecord);
     saveResults(results);
     clearQuizProgress(quizId);
     toast.success('Quiz submitted successfully!');
     navigate(`/student/result/${resultId}`);
-  }, [quiz, answers, user, quizId, navigate, toast]);
+  }, [quiz, answers, user, quizId, navigate, toast, remainingTime]);
 
   const handleTimeExpire = useCallback(() => {
     toast.warning('Time is up! Submitting your quiz automatically.');
@@ -113,13 +79,13 @@ export default function TakeQuiz() {
   }, [handleSubmit, toast]);
 
   if (loading) return <div className="page"><div className="loading-container"><div className="loading-spinner" /><p className="loading-message">Loading quiz...</p></div></div>;
-  if (!quiz) return <div className="page"><div className="error-state"><h2>Quiz Not Found</h2><p className="text-muted">The quiz you're looking for doesn't exist.</p><button className="btn btn-primary" onClick={() => navigate('/student/quizzes')}>Back to Quizzes</button></div></div>;
-
-  const status = getQuizStatus(quiz);
-  if (status === 'Upcoming') return <div className="page"><div className="error-state"><h2>Quiz Not Yet Open</h2><p className="text-muted">This quiz opens at {quiz.scheduledAt ? new Date(quiz.scheduledAt).toLocaleString() : 'scheduled time'}.</p></div></div>;
-  if (status === 'Completed') return <div className="page"><div className="error-state"><h2>Quiz Closed</h2><p className="text-muted">This quiz closed at {quiz.scheduledEnd ? new Date(quiz.scheduledEnd).toLocaleString() : 'scheduled end'}.</p></div></div>;
-  if (!quiz.published) return <div className="page"><div className="error-state"><h2>Quiz Unavailable</h2><p className="text-muted">This quiz is not currently published.</p><button className="btn btn-primary" onClick={() => navigate('/student/quizzes')}>Back to Quizzes</button></div></div>;
-  if (quiz.questions.length === 0) return <div className="page"><div className="error-state"><h2>No Questions</h2><p className="text-muted">This quiz doesn't have any questions yet.</p><button className="btn btn-primary" onClick={() => navigate('/student/quizzes')}>Back to Quizzes</button></div></div>;
+  if (!quiz) return <div className="page"><div className="error-state"><h2>Quiz Not Found</h2><p className="text-muted">The quiz you're looking for doesn't exist.</p><button className="btn btn-primary mt-4" onClick={() => navigate('/student/quizzes')}>Back to Quizzes</button></div></div>;
+  const quizStatus = getQuizStatus(quiz);
+  if (!quiz.published) return <div className="page"><div className="error-state"><h2>Quiz Unavailable</h2><p className="text-muted">This quiz is not currently published.</p><button className="btn btn-primary mt-4" onClick={() => navigate('/student/quizzes')}>Back to Quizzes</button></div></div>;
+  if (quizStatus === 'UPCOMING') return <div className="page"><div className="error-state"><h2>This quiz has not started yet</h2><p className="text-muted">Opens {getOpenDate(quiz)?.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.</p><p className="text-primary font-semibold mt-2">{formatDuration(getOpenDate(quiz).getTime() - Date.now())}</p><button className="btn btn-primary mt-4" onClick={() => navigate('/student/quizzes')}>Back to Quizzes</button></div></div>;
+  if (quizStatus === 'COMPLETED') return <div className="page"><div className="error-state"><h2>This quiz is no longer available</h2><p className="text-muted">It closed {getCloseDate(quiz)?.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.</p><button className="btn btn-primary mt-4" onClick={() => navigate('/student/quizzes')}>Back to Quizzes</button></div></div>;
+  if (!started) return <div className="page"><div className="error-state card" style={{ maxWidth: 650, margin: '3rem auto', padding: '3rem 2rem' }}><span className="result-hero-emoji">📝</span><h2>{quiz.title}</h2><p className="text-muted mt-2">{quiz.description}</p><p className="text-muted mt-2">{quiz.questions.length} questions · {quiz.totalMarks} marks · {quiz.duration} minutes</p><button className="btn btn-primary btn-lg mt-4" onClick={() => { setStarted(true); setRemainingTime(quiz.duration * 60); }}>Start Quiz</button></div></div>;
+  if (quiz.questions.length === 0) return <div className="page"><div className="error-state"><h2>No Questions</h2><p className="text-muted">This quiz doesn't have any questions yet.</p><button className="btn btn-primary mt-4" onClick={() => navigate('/student/quizzes')}>Back to Quizzes</button></div></div>;
 
   const currentQuestion = quiz.questions[currentIndex];
   const answeredCount = Object.keys(answers).length;
@@ -133,7 +99,7 @@ export default function TakeQuiz() {
           <h1 className="quiz-header-title">{quiz.title}</h1>
           <p className="quiz-header-meta">Question {currentIndex + 1} of {quiz.questions.length}</p>
         </div>
-        <Timer duration={quiz.duration} initialSeconds={initialRemaining} onExpire={handleTimeExpire} stopped={timerStopped} />
+        <Timer duration={quiz.duration} initialSeconds={remainingTime} onTick={setRemainingTime} onExpire={handleTimeExpire} stopped={timerStopped} />
       </header>
       <div className="quiz-progress-bar">
         <div className="progress-label">
@@ -162,9 +128,7 @@ export default function TakeQuiz() {
               const isMarked = !!markedForReview[q.id];
               const isCurrent = i === currentIndex;
               return (
-                <button key={q.id} className={`palette-item ${isCurrent ? 'current' : ''} ${isAnswered ? 'answered' : 'unanswered'} ${isMarked ? 'marked' : ''}`} onClick={() => setCurrentIndex(i)}>
-                  {i + 1}
-                </button>
+                <button key={q.id} className={`palette-item ${isCurrent ? 'current' : ''} ${isAnswered ? 'answered' : 'unanswered'} ${isMarked ? 'marked' : ''}`} onClick={() => setCurrentIndex(i)}>{i + 1}</button>
               );
             })}
           </div>
