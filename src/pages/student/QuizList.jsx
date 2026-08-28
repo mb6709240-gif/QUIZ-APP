@@ -1,15 +1,23 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getQuizzes, getQuizProgress } from '../../utils/storage';
 import QuizCard from '../../components/QuizCard';
 import EmptyState from '../../components/EmptyState';
+import { getQuizStatus } from '../../utils/scheduling';
 
-export default function QuizList() {
+export default function QuizList({ filter }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('All');
   const [difficultyFilter, setDifficultyFilter] = useState('All');
+  const [statusView, setStatusView] = useState(filter || 'ALL');
+  const [now, setNow] = useState(() => new Date());
   const quizzes = getQuizzes().filter((q) => q.published);
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const progress = getQuizProgress();
 
   const subjects = useMemo(() => {
@@ -22,9 +30,10 @@ export default function QuizList() {
       const matchSearch = !search || q.title.toLowerCase().includes(search.toLowerCase()) || q.description.toLowerCase().includes(search.toLowerCase());
       const matchSubject = subjectFilter === 'All' || q.subject === subjectFilter;
       const matchDifficulty = difficultyFilter === 'All' || q.difficulty === difficultyFilter;
-      return matchSearch && matchSubject && matchDifficulty;
+      const matchStatus = statusView === 'ALL' || getQuizStatus(q, now) === statusView;
+      return matchSearch && matchSubject && matchDifficulty && matchStatus;
     });
-  }, [quizzes, search, subjectFilter, difficultyFilter]);
+  }, [quizzes, search, subjectFilter, difficultyFilter, statusView, now]);
 
   const clearFilters = () => { setSearch(''); setSubjectFilter('All'); setDifficultyFilter('All'); };
 
@@ -51,6 +60,20 @@ export default function QuizList() {
           </select>
         </div>
       </div>
+      {!filter && (
+        <div className="quiz-toolbar" role="tablist" aria-label="Quiz status">
+          {[
+            ['ALL', 'All Quizzes'],
+            ['LIVE', 'Live'],
+            ['UPCOMING', 'Upcoming'],
+            ['COMPLETED', 'Completed'],
+          ].map(([value, label]) => (
+            <button key={value} role="tab" aria-selected={statusView === value} className={`btn ${statusView === value ? 'btn-primary' : 'btn-secondary'} btn-sm`} onClick={() => setStatusView(value)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       {filtered.length > 0 ? (
         <div className="quiz-grid">
           {filtered.map((quiz) => (
