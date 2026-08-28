@@ -4,6 +4,13 @@ import { getQuizzes, saveQuizzes } from '../../utils/storage';
 import { useToast } from '../../components/Toast';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
+import { getOpenDate, getCloseDate } from '../../utils/scheduling';
+
+const toLocalInput = (date) => {
+  if (!date) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
 
 export default function ManageQuestions() {
   const { quizId } = useParams();
@@ -18,7 +25,11 @@ export default function ManageQuestions() {
   const quiz = useMemo(() => quizzes.find((q) => q.id === quizId), [quizzes, quizId]);
 
   const [questionForm, setQuestionForm] = useState({ text: '', options: ['', '', '', ''], correctAnswer: '', marks: 2, explanation: '' });
-  const [quizForm, setQuizForm] = useState(quiz ? { title: quiz.title, description: quiz.description, subject: quiz.subject, difficulty: quiz.difficulty, duration: quiz.duration, passingPercentage: quiz.passingPercentage, published: quiz.published, scheduledEnabled: quiz.scheduledEnabled || false, scheduledAt: quiz.scheduledAt ? new Date(quiz.scheduledAt).toISOString().slice(0, 16) : '' } : {});
+  const [quizForm, setQuizForm] = useState(quiz ? {
+    title: quiz.title, description: quiz.description, subject: quiz.subject, difficulty: quiz.difficulty, duration: quiz.duration,
+    passingPercentage: quiz.passingPercentage, published: quiz.published, scheduledEnabled: quiz.scheduledEnabled || !!quiz.scheduledAt,
+    openAt: toLocalInput(getOpenDate(quiz)), closeAt: toLocalInput(getCloseDate(quiz)),
+  } : {});
 
   if (!quiz) {
     return <div className="page"><div className="error-state"><h2>Quiz Not Found</h2><p className="text-muted">This quiz doesn't exist.</p><button className="btn btn-primary mt-4" onClick={() => navigate('/admin/quizzes')}>Back to Quizzes</button></div></div>;
@@ -86,7 +97,16 @@ export default function ManageQuestions() {
     e.preventDefault();
     const updated = quizzes.map((q) => {
       if (q.id !== quizId) return q;
-      return { ...q, title: quizForm.title.trim(), description: quizForm.description.trim(), subject: quizForm.subject.trim(), difficulty: quizForm.difficulty, duration: parseInt(quizForm.duration), passingPercentage: parseInt(quizForm.passingPercentage), published: quizForm.published, scheduledEnabled: quizForm.scheduledEnabled, scheduledAt: quizForm.scheduledEnabled ? new Date(quizForm.scheduledAt).toISOString() : null };
+      const open = quizForm.scheduledEnabled && quizForm.openAt ? new Date(quizForm.openAt) : null;
+      const close = quizForm.scheduledEnabled && quizForm.closeAt ? new Date(quizForm.closeAt) : null;
+      return {
+        ...q, title: quizForm.title.trim(), description: quizForm.description.trim(), subject: quizForm.subject.trim(),
+        difficulty: quizForm.difficulty, duration: parseInt(quizForm.duration), passingPercentage: parseInt(quizForm.passingPercentage),
+        published: quizForm.published, scheduledEnabled: quizForm.scheduledEnabled,
+        openDate: open ? quizForm.openAt.slice(0, 10) : null, openTime: open ? quizForm.openAt.slice(11, 16) : null,
+        closeDate: close ? quizForm.closeAt.slice(0, 10) : null, closeTime: close ? quizForm.closeAt.slice(11, 16) : null,
+        scheduledAt: open ? open.toISOString() : null,
+      };
     });
     updateQuizState(updated);
     toast.success('Quiz updated successfully');
@@ -121,8 +141,8 @@ export default function ManageQuestions() {
         <div className="quiz-info-item"><span className="quiz-info-icon">{'\uD83C\uDFC6'}</span><span>{quiz.totalMarks} Marks</span></div>
         <div className="quiz-info-item"><span className="quiz-info-icon">{'\u23F1\uFE0F'}</span><span>{quiz.duration} Minutes</span></div>
         <div className="quiz-info-item"><span className="quiz-info-icon">{'\u2705'}</span><span>Pass: {quiz.passingPercentage}%</span></div>
-        {quiz.scheduledEnabled && quiz.scheduledAt && (
-          <div className="quiz-info-item"><span className="quiz-info-icon">{'\uD83D\uDCC5'}</span><span>Opens: {new Date(quiz.scheduledAt).toLocaleString('en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
+        {getOpenDate(quiz) && (
+          <div className="quiz-info-item"><span className="quiz-info-icon">{'\uD83D\uDCC5'}</span><span>Opens: {getOpenDate(quiz).toLocaleString('en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
         )}
       </div>
       <div className="questions-section">
@@ -247,8 +267,10 @@ export default function ManageQuestions() {
           </div>
           {quizForm.scheduledEnabled && (
             <div className="form-group">
-              <label className="form-label">Quiz Opens At</label>
-              <input type="datetime-local" className="form-input" value={quizForm.scheduledAt || ''} onChange={(e) => setQuizForm({ ...quizForm, scheduledAt: e.target.value })} />
+              <label className="form-label">Open Date & Time</label>
+              <input type="datetime-local" className="form-input" value={quizForm.openAt || ''} onChange={(e) => setQuizForm({ ...quizForm, openAt: e.target.value })} />
+              <label className="form-label mt-2">Close Date & Time</label>
+              <input type="datetime-local" className="form-input" value={quizForm.closeAt || ''} onChange={(e) => setQuizForm({ ...quizForm, closeAt: e.target.value })} />
             </div>
           )}
           <div className="form-actions">
