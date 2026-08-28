@@ -3,8 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { getUsers, setCurrentUser } from '../utils/storage';
 import { useToast } from '../components/Toast';
 
-export default function Login() {
-  const [role, setRole] = useState('student');
+export default function Login({ initialRole = 'student' }) {
+  const [role, setRole] = useState(initialRole);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
@@ -67,12 +67,12 @@ export default function Login() {
             <h2 className="auth-form-title">{role === 'student' ? 'Student Login' : 'Admin Login'}</h2>
             <div className="form-group">
               <label className="form-label">Email</label>
-              <input type="email" className="form-input" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input type="email" autoComplete="email" className="form-input" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} />
               {errors.email && <span className="form-error">{errors.email}</span>}
             </div>
             <div className="form-group">
               <label className="form-label">Password</label>
-              <input type="password" className="form-input" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <input type="password" autoComplete="current-password" className="form-input" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} />
               {errors.password && <span className="form-error">{errors.password}</span>}
             </div>
             <button type="submit" className="btn btn-primary btn-lg w-full" disabled={loading}>
