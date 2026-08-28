@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { getResults, saveResults } from '../../utils/storage';
+import { useNavigate } from 'react-router-dom';
+import { getResults, saveResults, getCurrentUser } from '../../utils/storage';
 import { getGrade, getStatus } from '../../utils/grading';
 import { useToast } from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
@@ -7,6 +8,7 @@ import Modal from '../../components/Modal';
 
 export default function ManageResults() {
   const toast = useToast();
+  const navigate = useNavigate();
   const [results, setResults] = useState(getResults());
   const [search, setSearch] = useState('');
   const [quizFilter, setQuizFilter] = useState('All');
@@ -15,7 +17,7 @@ export default function ManageResults() {
   const [sortBy, setSortBy] = useState('date-desc');
   const [editTarget, setEditTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [editForm, setEditForm] = useState({ obtainedMarks: 0, totalMarks: 0, passingPercentage: 50 });
+  const [editForm, setEditForm] = useState({ obtainedMarks: 0, totalMarks: 0, passingPercentage: 50, correct: 0, wrong: 0, unanswered: 0, adminNote: '' });
 
   const quizOptions = useMemo(() => {
     const set = new Set(results.map((r) => r.quizTitle));
@@ -24,7 +26,7 @@ export default function ManageResults() {
 
   const filtered = useMemo(() => {
     let list = results.filter((r) => {
-      const matchSearch = !search || r.studentName.toLowerCase().includes(search.toLowerCase()) || r.quizTitle.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = !search || r.studentName.toLowerCase().includes(search.toLowerCase()) || (r.studentEmail || '').toLowerCase().includes(search.toLowerCase()) || r.quizTitle.toLowerCase().includes(search.toLowerCase());
       const matchQuiz = quizFilter === 'All' || r.quizTitle === quizFilter;
       const matchGrade = gradeFilter === 'All' || r.grade === gradeFilter;
       const matchStatus = statusFilter === 'All' || r.status === statusFilter;
@@ -44,7 +46,7 @@ export default function ManageResults() {
 
   const openEdit = (result) => {
     setEditTarget(result);
-    setEditForm({ obtainedMarks: result.obtainedMarks, totalMarks: result.totalMarks, passingPercentage: result.passingPercentage || 50 });
+    setEditForm({ obtainedMarks: result.obtainedMarks, totalMarks: result.totalMarks, passingPercentage: result.passingPercentage || 50, correct: result.correct ?? result.correctAnswers ?? 0, wrong: result.wrong ?? result.wrongAnswers ?? 0, unanswered: result.unanswered ?? 0, adminNote: result.adminNote || '' });
   };
 
   const handleSaveEdit = (e) => {
@@ -56,7 +58,7 @@ export default function ManageResults() {
     const percentage = Math.round((obtained / total) * 100);
     const grade = getGrade(percentage);
     const status = getStatus(percentage, parseInt(editForm.passingPercentage));
-    const updated = results.map((r) => r.id === editTarget.id ? { ...r, obtainedMarks: obtained, totalMarks: total, percentage, grade, status, passingPercentage: parseInt(editForm.passingPercentage) } : r);
+    const updated = results.map((r) => r.id === editTarget.id ? { ...r, obtainedMarks: obtained, totalMarks: total, percentage, grade, status, passingPercentage: parseInt(editForm.passingPercentage), correct: Number(editForm.correct) || 0, wrong: Number(editForm.wrong) || 0, unanswered: Number(editForm.unanswered) || 0, correctAnswers: Number(editForm.correct) || 0, wrongAnswers: Number(editForm.wrong) || 0, adminNote: editForm.adminNote.trim(), lastModifiedBy: getCurrentUser()?.email || 'admin@quiz.com', lastModifiedAt: new Date().toISOString() } : r);
     setResults(updated); saveResults(updated);
     toast.success('Result updated successfully');
     setEditTarget(null);
@@ -100,12 +102,13 @@ export default function ManageResults() {
         <div className="table-wrapper">
           <table className="table">
             <thead>
-              <tr><th>Student</th><th>Quiz</th><th>Score</th><th>Percentage</th><th>Grade</th><th>Status</th><th>Date</th><th>Actions</th></tr>
+              <tr><th>Student</th><th>Email</th><th>Quiz</th><th>Score</th><th>Percentage</th><th>Grade</th><th>Status</th><th>Date</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {filtered.map((result) => (
                 <tr key={result.id}>
                   <td className="font-semibold">{result.studentName}</td>
+                  <td className="text-muted">{result.studentEmail || '—'}</td>
                   <td>{result.quizTitle}</td>
                   <td>{result.obtainedMarks}/{result.totalMarks}</td>
                   <td><span className={result.percentage >= 80 ? 'text-success' : result.percentage >= 50 ? 'text-warning' : 'text-danger'}>{result.percentage}%</span></td>
@@ -114,6 +117,7 @@ export default function ManageResults() {
                   <td className="text-muted">{new Date(result.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                   <td>
                     <div className="table-actions">
+                      <button className="action-btn" title="View" onClick={() => navigate(`/admin/results/${result.id}`)}>View</button>
                       <button className="action-btn" title="Edit" onClick={() => openEdit(result)}>{'\u270F\uFE0F'}</button>
                       <button className="action-btn" title="Delete" onClick={() => setDeleteTarget(result)}>{'\uD83D\uDDD1\uFE0F'}</button>
                     </div>
@@ -148,6 +152,12 @@ export default function ManageResults() {
               <label className="form-label">Passing Percentage</label>
               <input type="number" className="form-input" min="1" max="100" value={editForm.passingPercentage} onChange={(e) => setEditForm({ ...editForm, passingPercentage: e.target.value })} />
             </div>
+            <div className="form-row">
+              <div className="form-group"><label className="form-label">Correct Answers</label><input type="number" min="0" className="form-input" value={editForm.correct} onChange={(e) => setEditForm({ ...editForm, correct: e.target.value })} /></div>
+              <div className="form-group"><label className="form-label">Wrong Answers</label><input type="number" min="0" className="form-input" value={editForm.wrong} onChange={(e) => setEditForm({ ...editForm, wrong: e.target.value })} /></div>
+              <div className="form-group"><label className="form-label">Unanswered</label><input type="number" min="0" className="form-input" value={editForm.unanswered} onChange={(e) => setEditForm({ ...editForm, unanswered: e.target.value })} /></div>
+            </div>
+            <div className="form-group"><label className="form-label">Admin Note</label><textarea className="form-textarea" rows="2" value={editForm.adminNote} onChange={(e) => setEditForm({ ...editForm, adminNote: e.target.value })} /></div>
             <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-sm)', background: 'var(--surface-soft)', marginBottom: '1rem', fontSize: '0.85rem' }}>
               <span>Preview: </span>
               <span className="font-bold">
