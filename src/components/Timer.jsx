@@ -1,26 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
 
-export default function Timer({ duration, initialSeconds = null, onExpire, stopped = false }) {
-  const startSeconds = initialSeconds !== null ? initialSeconds : (duration || 0) * 60;
-  const [secondsLeft, setSecondsLeft] = useState(startSeconds);
+export default function Timer({ duration, initialSeconds, onExpire, onTick, stopped = false }) {
+  const [secondsLeft, setSecondsLeft] = useState(initialSeconds ?? duration * 60);
   const onExpireRef = useRef(onExpire);
+  const onTickRef = useRef(onTick);
   onExpireRef.current = onExpire;
+  onTickRef.current = onTick;
 
-  useEffect(() => {
-    if (initialSeconds !== null) setSecondsLeft(initialSeconds);
-    else setSecondsLeft((duration || 0) * 60);
-  }, [duration, initialSeconds]);
+  useEffect(() => { setSecondsLeft(initialSeconds ?? duration * 60); }, [duration]);
 
   useEffect(() => {
     if (stopped) return;
     const interval = setInterval(() => {
       setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          try { onExpireRef.current && onExpireRef.current(); } catch (e) { /* ignore */ }
-          return 0;
-        }
-        return prev - 1;
+        if (prev <= 1) { clearInterval(interval); onTickRef.current?.(0); onExpireRef.current(); return 0; }
+        const next = prev - 1;
+        onTickRef.current?.(next);
+        return next;
       });
     }, 1000);
     return () => clearInterval(interval);
