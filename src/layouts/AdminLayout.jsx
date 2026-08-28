@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, Outlet } from 'react-router-dom';
 import { getCurrentUser, logoutUser } from '../utils/storage';
 import ThemeToggle from '../components/ThemeToggle';
 import { useState } from 'react';
@@ -13,6 +13,7 @@ export default function AdminLayout({ children }) {
   const navItems = [
     { to: '/admin/dashboard', icon: '\uD83D\uDCCA', label: 'Dashboard' },
     { to: '/admin/quizzes', icon: '\uD83D\uDCDD', label: 'Quizzes' },
+    { to: '/admin/questions', icon: '\u2753', label: 'Questions' },
     { to: '/admin/students', icon: '\uD83D\uDC65', label: 'Students' },
     { to: '/admin/results', icon: '\uD83C\uDFC6', label: 'Results' },
     { to: '/admin/analytics', icon: '\uD83D\uDCC8', label: 'Analytics' },
@@ -72,7 +73,7 @@ export default function AdminLayout({ children }) {
             <div className="header-avatar admin-avatar"><span>{user?.name?.charAt(0).toUpperCase() || 'A'}</span></div>
           </div>
         </header>
-        <main className="layout-content">{children}</main>
+        <main className="layout-content"><Outlet /></main>
       </div>
       <nav className="bottom-nav">
         {navItems.slice(0, 4).map((item) => (
