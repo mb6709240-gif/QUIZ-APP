@@ -9,7 +9,7 @@ export default function CreateQuiz() {
   const [form, setForm] = useState({
     title: '', description: '', subject: '', difficulty: 'Easy',
     duration: 30, passingPercentage: 50,
-    scheduledEnabled: false, scheduledAt: '', scheduledEnd: '',
+    scheduledEnabled: false, openDate: '', openTime: '', closeDate: '', closeTime: '',
   });
   const [errors, setErrors] = useState({});
 
@@ -20,12 +20,9 @@ export default function CreateQuiz() {
     if (!form.subject.trim()) errs.subject = 'Subject is required';
     if (!form.duration || form.duration < 1) errs.duration = 'Duration must be at least 1 minute';
     if (!form.passingPercentage || form.passingPercentage < 1 || form.passingPercentage > 100) errs.passingPercentage = 'Passing percentage must be 1-100';
-    if (form.scheduledEnabled && !form.scheduledAt) errs.scheduledAt = 'Please pick an opening date and time';
-    if (form.scheduledEnabled && !form.scheduledEnd) errs.scheduledEnd = 'Please pick a closing date and time';
-    if (form.scheduledEnabled && form.scheduledAt && form.scheduledEnd) {
-      const start = new Date(form.scheduledAt).getTime();
-      const end = new Date(form.scheduledEnd).getTime();
-      if (isNaN(start) || isNaN(end) || end <= start) errs.scheduledEnd = 'Closing time must be after opening time';
+    if (form.scheduledEnabled && (!form.openDate || !form.openTime || !form.closeDate || !form.closeTime)) errs.schedule = 'Please provide opening and closing date/time';
+    if (form.scheduledEnabled && form.openDate && form.openTime && form.closeDate && form.closeTime) {
+      if (new Date(`${form.closeDate}T${form.closeTime}`) <= new Date(`${form.openDate}T${form.openTime}`)) errs.schedule = 'Closing time must be after opening time';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -47,8 +44,11 @@ export default function CreateQuiz() {
       published: false,
       questions: [],
       scheduledEnabled: form.scheduledEnabled,
-      scheduledAt: form.scheduledEnabled ? new Date(form.scheduledAt).toISOString() : null,
-      scheduledEnd: form.scheduledEnabled ? new Date(form.scheduledEnd).toISOString() : null,
+      openDate: form.scheduledEnabled ? form.openDate : null,
+      openTime: form.scheduledEnabled ? form.openTime : null,
+      closeDate: form.scheduledEnabled ? form.closeDate : null,
+      closeTime: form.scheduledEnabled ? form.closeTime : null,
+      scheduledAt: form.scheduledEnabled ? new Date(`${form.openDate}T${form.openTime}`).toISOString() : null,
     };
     quizzes.push(newQuiz);
     saveQuizzes(quizzes);
@@ -115,26 +115,15 @@ export default function CreateQuiz() {
           </div>
           {form.scheduledEnabled && (
             <>
-              <div className="form-group">
-                <label className="form-label">Quiz Opens At</label>
-                <input
-                  type="datetime-local"
-                  className="form-input"
-                  value={form.scheduledAt}
-                  onChange={(e) => update('scheduledAt', e.target.value)}
-                />
-                {errors.scheduledAt && <span className="form-error">{errors.scheduledAt}</span>}
+              <div className="form-row">
+                <div className="form-group"><label className="form-label">Open Date</label><input type="date" className="form-input" value={form.openDate} onChange={(e) => update('openDate', e.target.value)} /></div>
+                <div className="form-group"><label className="form-label">Open Time</label><input type="time" className="form-input" value={form.openTime} onChange={(e) => update('openTime', e.target.value)} /></div>
               </div>
-              <div className="form-group">
-                <label className="form-label">Quiz Closes At</label>
-                <input
-                  type="datetime-local"
-                  className="form-input"
-                  value={form.scheduledEnd}
-                  onChange={(e) => update('scheduledEnd', e.target.value)}
-                />
-                {errors.scheduledEnd && <span className="form-error">{errors.scheduledEnd}</span>}
+              <div className="form-row">
+                <div className="form-group"><label className="form-label">Close Date</label><input type="date" className="form-input" value={form.closeDate} onChange={(e) => update('closeDate', e.target.value)} /></div>
+                <div className="form-group"><label className="form-label">Close Time</label><input type="time" className="form-input" value={form.closeTime} onChange={(e) => update('closeTime', e.target.value)} /></div>
               </div>
+              {errors.schedule && <span className="form-error">{errors.schedule}</span>}
             </>
           )}
           <div className="form-actions">
